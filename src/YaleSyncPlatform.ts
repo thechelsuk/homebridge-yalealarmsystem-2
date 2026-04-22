@@ -10,13 +10,7 @@ import {
 	Nullable,
 } from 'hap-nodejs'
 import { platformConfigDecoder } from './YaleSyncPlatformConfig'
-import {
-	ContactSensor as HAPContactSensor,
-	MotionSensor as HAPMotionSensor,
-	SecuritySystem,
-	AccessoryInformation,
-	ContactSensorState,
-} from 'hap-nodejs/dist/lib/gen/HomeKit'
+// Removed invalid import from hap-nodejs/dist/lib/gen/HomeKit
 import { Logger, LogLevel } from 'yalesyncalarm/dist/Logger'
 import { ContactSensor, MotionSensor, Panel } from 'yalesyncalarm/dist/Model'
 import wait from './Wait'
@@ -24,10 +18,11 @@ import wait from './Wait'
 // All of these are redeclared, and then reassigned below so we can elide the require('hap-nodejs').
 // This means hap-nodejs can just be a development dependency and we can reduce the package size.
 // Typescript 3.8 allows for import type {}, but we don't use that yet.
+
 let Service: typeof HAPService
 let Characteristic: typeof HAPCharacteristic
 let UUIDGenerator: typeof uuid
-let Categories: typeof HAPAccessoryCategory
+// let Categories: typeof HAPAccessoryCategory // Not needed for runtime
 
 let PlatformAccessory: any
 
@@ -35,19 +30,19 @@ let pluginName = 'homebridge-yalesyncalarm'
 let platformName = 'YaleSyncAlarm'
 
 export default function (homebridge: any) {
-	Service = homebridge.hap.Service
-	Characteristic = homebridge.hap.Characteristic
-	UUIDGenerator = homebridge.hap.uuid
-	Categories = homebridge.hap.Accessory.Categories
+       Service = homebridge.hap.Service;
+       Characteristic = homebridge.hap.Characteristic;
+       UUIDGenerator = homebridge.hap.uuid;
+	// Categories assignment removed; not needed for runtime
 
-	PlatformAccessory = homebridge.platformAccessory
+       PlatformAccessory = homebridge.platformAccessory;
 
-	homebridge.registerPlatform(
-		pluginName,
-		platformName,
-		YaleSyncPlatform, // constructor
-		true // dynamic
-	)
+       homebridge.registerPlatform(
+	       pluginName,
+	       platformName,
+			   (log: any, config: any, api: any) => new YaleSyncPlatform(log, config, api),
+	       true // dynamic
+       );
 }
 
 function modeToCurrentState(mode: Panel.State) {
@@ -204,11 +199,11 @@ class YaleSyncPlatform {
 				`${pluginName}.${platformName}.panel.${panel.identifier}`
 			)
 			if (this._accessories[uuid] === undefined) {
-				const accessory = new PlatformAccessory(
-					'Alarm System',
-					uuid,
-					Categories.SECURITY_SYSTEM
-				)
+				       const accessory = new PlatformAccessory(
+					       'Alarm System',
+					       uuid,
+					       11 // SECURITY_SYSTEM
+				       )
 				accessory.context.identifier = panel.identifier
 				accessory.context.kind = 'panel'
 				this.configurePanel(accessory)
@@ -226,29 +221,29 @@ class YaleSyncPlatform {
 		const motionSensors = await this._yale.motionSensors()
 		for (let [identifier, motionSensor] of Object.entries(motionSensors)) {
 			this._log(
-				`Discovered moton sensor: ${motionSensor.name}, ${motionSensor.identifier}`
+				   `Discovered moton sensor: ${(motionSensor as MotionSensor).name}, ${(motionSensor as MotionSensor).identifier}`
 			)
 			const uuid = UUIDGenerator.generate(
 				`${pluginName}.${platformName}.motionSensor.${identifier}`
 			)
 			if (this._accessories[uuid] === undefined) {
-				const accessory = new PlatformAccessory(
-					motionSensor.name,
-					uuid,
-					Categories.SENSOR
-				)
+				       const accessory = new PlatformAccessory(
+					       (motionSensor as MotionSensor).name,
+					    uuid,
+					    10 // SENSOR
+				       )
 				accessory.context.identifier = identifier
 				accessory.context.kind = 'motionSensor'
 				this.configureMotionSensor(accessory)
 				this._log(
-					`Registering motion sensor: ${motionSensor.name} ${motionSensor.identifier}`
+					   `Registering motion sensor: ${(motionSensor as MotionSensor).name} ${(motionSensor as MotionSensor).identifier}`
 				)
 				this._api.registerPlatformAccessories(pluginName, platformName, [
 					accessory,
 				])
 			} else {
 				this._log(
-					`Motion sensor: ${motionSensor.name} ${motionSensor.identifier} already registered with Homebridge`
+					   `Motion sensor: ${(motionSensor as MotionSensor).name} ${(motionSensor as MotionSensor).identifier} already registered with Homebridge`
 				)
 			}
 		}
@@ -256,29 +251,29 @@ class YaleSyncPlatform {
 		const contactSensors = await this._yale.contactSensors()
 		for (let [identifier, contactSensor] of Object.entries(contactSensors)) {
 			this._log(
-				`Discovered moton sensor: ${contactSensor.name} ${contactSensor.identifier}`
+				   `Discovered moton sensor: ${(contactSensor as ContactSensor).name} ${(contactSensor as ContactSensor).identifier}`
 			)
 			const uuid = UUIDGenerator.generate(
 				`${pluginName}.${platformName}.contactSensor.${identifier}`
 			)
 			if (this._accessories[uuid] === undefined) {
-				const accessory = new PlatformAccessory(
-					contactSensor.name,
-					uuid,
-					Categories.SENSOR
-				)
+				       const accessory = new PlatformAccessory(
+					       (contactSensor as ContactSensor).name,
+					    uuid,
+					    10 // SENSOR
+				       )
 				accessory.context.identifier = identifier
 				accessory.context.kind = 'contactSensor'
 				this.configureContactSensor(accessory)
 				this._log(
-					`Registering contact sensor: ${contactSensor.name} ${contactSensor.identifier}`
+					   `Registering contact sensor: ${(contactSensor as ContactSensor).name} ${(contactSensor as ContactSensor).identifier}`
 				)
 				this._api.registerPlatformAccessories(pluginName, platformName, [
 					accessory,
 				])
 			} else {
 				this._log(
-					`Contact sensor: ${contactSensor.name} ${contactSensor.identifier} already registered with Homebridge`
+					   `Contact sensor: ${(contactSensor as ContactSensor).name} ${(contactSensor as ContactSensor).identifier} already registered with Homebridge`
 				)
 			}
 		}
@@ -308,30 +303,30 @@ class YaleSyncPlatform {
 		}
 		if (this._accessories[accessory.UUID] === undefined) {
 			// Homebridge adds this service by default to all instances of PlatformAccessory
-			const informationService: AccessoryInformation = accessory.getService(
+			   const informationService: any = accessory.getService(
 				Service.AccessoryInformation
 			)
 			informationService
-				.setCharacteristic(Characteristic.Name, accessory.displayName)
-				.setCharacteristic(Characteristic.Manufacturer, 'Yale')
-				.setCharacteristic(Characteristic.Model, 'Motion Sensor')
-				.setCharacteristic(
-					Characteristic.SerialNumber,
-					accessory.context.identifier
-				)
-			const sensorService: HAPMotionSensor =
-				accessory.getService(Service.MotionSensor) !== undefined
-					? accessory.getService(Service.MotionSensor)
-					: accessory.addService(Service.MotionSensor)
+				       .setCharacteristic(Characteristic.Name, accessory.displayName)
+				       .setCharacteristic(Characteristic.Manufacturer, 'Yale')
+				       .setCharacteristic(Characteristic.Model, 'Motion Sensor')
+				       .setCharacteristic(
+					       Characteristic.SerialNumber,
+					       accessory.context.identifier
+				       )
+			       const sensorService: any =
+				       accessory.getService(Service.MotionSensor) !== undefined
+					       ? accessory.getService(Service.MotionSensor)
+					       : accessory.addService(Service.MotionSensor)
 			sensorService
 				.getCharacteristic(Characteristic.MotionDetected)
-				?.on(
-					'get' as any,
-					async (
-						callback: CharacteristicGetCallback<Nullable<CharacteristicValue>>,
-						context?: any,
-						connectionID?: string | undefined
-					) => {
+				       .on(
+					       'get' as any,
+					       async (
+						       callback: CharacteristicGetCallback,
+						       context?: any,
+						       connectionID?: string | undefined
+					       ) => {
 						if (this._yale === undefined) {
 							callback(new Error(`${pluginName} incorrectly configured`))
 							return
@@ -375,7 +370,7 @@ class YaleSyncPlatform {
 					}
 				)
 		}
-		accessory.updateReachability(true)
+		// updateReachability is removed in Homebridge v2.0
 		this._accessories[accessory.UUID] = accessory
 	}
 
@@ -386,7 +381,7 @@ class YaleSyncPlatform {
 		}
 		if (this._accessories[accessory.UUID] === undefined) {
 			// Homebridge adds this service by default to all instances of PlatformAccessory
-			const informationService: AccessoryInformation = accessory.getService(
+			const informationService: any = accessory.getService(
 				Service.AccessoryInformation
 			)
 			informationService
@@ -397,19 +392,19 @@ class YaleSyncPlatform {
 					Characteristic.SerialNumber,
 					accessory.context.identifier
 				)
-			const sensorService: HAPContactSensor =
+			const sensorService: any =
 				accessory.getService(Service.ContactSensor) !== undefined
 					? accessory.getService(Service.ContactSensor)
 					: accessory.addService(Service.ContactSensor)
 			sensorService
 				.getCharacteristic(Characteristic.ContactSensorState)
-				?.on(
-					'get' as any,
-					async (
-						callback: CharacteristicGetCallback<Nullable<CharacteristicValue>>,
-						context?: any,
-						connectionID?: string | undefined
-					) => {
+				       .on(
+					       'get' as any,
+					       async (
+						       callback: CharacteristicGetCallback,
+						       context?: any,
+						       connectionID?: string | undefined
+					       ) => {
 						if (this._yale === undefined) {
 							callback(new Error(`${pluginName} incorrectly configured`))
 							return
@@ -456,7 +451,7 @@ class YaleSyncPlatform {
 					}
 				)
 		}
-		accessory.updateReachability(true)
+		// updateReachability is removed in Homebridge v2.0
 		this._accessories[accessory.UUID] = accessory
 	}
 
@@ -467,7 +462,7 @@ class YaleSyncPlatform {
 		}
 		if (this._accessories[accessory.UUID] === undefined) {
 			// Homebridge adds this service by default to all instances of PlatformAccessory
-			const informationService: AccessoryInformation = accessory.getService(
+			const informationService: any = accessory.getService(
 				Service.AccessoryInformation
 			)
 			informationService
@@ -479,19 +474,19 @@ class YaleSyncPlatform {
 					accessory.context.identifier
 				)
 
-			const securitySystem: SecuritySystem =
+			const securitySystem: any =
 				accessory.getService(Service.SecuritySystem) !== undefined
 					? accessory.getService(Service.SecuritySystem)
 					: accessory.addService(Service.SecuritySystem)
 			securitySystem
 				.getCharacteristic(Characteristic.SecuritySystemCurrentState)
-				?.on(
-					'get' as any,
-					async (
-						callback: CharacteristicGetCallback<Nullable<CharacteristicValue>>,
-						context?: any,
-						connectionID?: string | undefined
-					) => {
+				       .on(
+					       'get' as any,
+					       async (
+						       callback: CharacteristicGetCallback,
+						       context?: any,
+						       connectionID?: string | undefined
+					       ) => {
 						if (this._yale === undefined) {
 							// Incorrectly configured plugin.
 							callback(new Error(`${pluginName} incorrectly configured`))
@@ -511,13 +506,13 @@ class YaleSyncPlatform {
 
 			securitySystem
 				.getCharacteristic(Characteristic.SecuritySystemTargetState)
-				?.on(
-					'get' as any,
-					async (
-						callback: CharacteristicGetCallback<Nullable<CharacteristicValue>>,
-						context?: any,
-						connectionID?: string | undefined
-					) => {
+				       .on(
+					       'get' as any,
+					       async (
+						       callback: CharacteristicGetCallback,
+						       context?: any,
+						       connectionID?: string | undefined
+					       ) => {
 						if (this._yale === undefined) {
 							// Incorrectly configured plugin.
 							callback(new Error(`${pluginName} incorrectly configured`))
@@ -559,7 +554,7 @@ class YaleSyncPlatform {
 						}
 					}
 				)
-			accessory.updateReachability(true)
+			// updateReachability is removed in Homebridge v2.0
 			this._accessories[accessory.UUID] = accessory
 		}
 	}
