@@ -36,13 +36,51 @@ class YaleSyncPlatform implements DynamicPlatformPlugin {
 		// Build lookup maps for sensors
 		const motionSensors: { [id: string]: MotionSensor } = {};
 		const contactSensors: { [id: string]: ContactSensor } = {};
+		const newAccessories: any[] = [];
+
+		// Register panel accessory if missing
+		const panelUUID = this.UUIDGenerator.generate(panel.identifier);
+		if (!this._accessories[panelUUID]) {
+			const panelAccessory = new this.PlatformAccessory(panel.name, panelUUID);
+			panelAccessory.context = { kind: 'panel', identifier: panel.identifier };
+			this.configurePanel(panelAccessory);
+			newAccessories.push(panelAccessory);
+			this._log.info(`Registering new panel accessory: ${panel.name}`);
+		}
+
 		for (const sensor of sensors) {
 			if ('state' in sensor && Object.values(MotionSensorState).includes((sensor as any).state)) {
 				motionSensors[sensor.identifier] = sensor as MotionSensor;
+				// Register motion sensor accessory if missing
+				const uuid = this.UUIDGenerator.generate(sensor.identifier);
+				if (!this._accessories[uuid]) {
+					const motionAccessory = new this.PlatformAccessory(sensor.name, uuid);
+					motionAccessory.context = { kind: 'motionSensor', identifier: sensor.identifier };
+					this.configureMotionSensor(motionAccessory);
+					newAccessories.push(motionAccessory);
+					this._log.info(`Registering new motion sensor accessory: ${sensor.name}`);
+				}
 			} else if ('state' in sensor && Object.values(ContactSensorState).includes((sensor as any).state)) {
 				contactSensors[sensor.identifier] = sensor as ContactSensor;
+				// Register contact sensor accessory if missing
+				const uuid = this.UUIDGenerator.generate(sensor.identifier);
+				if (!this._accessories[uuid]) {
+					const contactAccessory = new this.PlatformAccessory(sensor.name, uuid);
+					contactAccessory.context = { kind: 'contactSensor', identifier: sensor.identifier };
+					// You may want to add a configureContactSensor method for full parity
+					this._accessories[uuid] = contactAccessory;
+					newAccessories.push(contactAccessory);
+					this._log.info(`Registering new contact sensor accessory: ${sensor.name}`);
+				}
 			}
 		}
+
+		// Register all new accessories with Homebridge
+		if (newAccessories.length > 0) {
+			this._api.registerPlatformAccessories(pluginName, platformName, newAccessories);
+		}
+
+		// Update values for all known accessories
 		for (const [uuid, acc] of Object.entries(this._accessories)) {
 			const accessory = acc as any;
 			if (accessory.context.kind === 'panel' && panel !== undefined) {

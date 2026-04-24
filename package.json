@@ -1,6 +1,6 @@
 {
 	"name": "homebridge-ysa2",
-	"version": "2.0.6",
+	"version": "2.0.6-beta.2",
 	"description": "Homebridge plugin for the Yale Sync Alarm",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
