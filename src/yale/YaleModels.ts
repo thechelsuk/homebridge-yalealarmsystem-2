@@ -1,8 +1,8 @@
 // Data models and enums for Yale Sync Alarm API
 
 export enum PanelState {
-  Armed = 'armed',
-  Disarmed = 'disarmed',
+  Armed = 'arm',
+  Disarmed = 'disarm',
   Home = 'home',
 }
 

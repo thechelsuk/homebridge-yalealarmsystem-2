@@ -56,10 +56,11 @@ class YaleSyncPlatform implements DynamicPlatformPlugin {
 
 	async heartbeat(interval: number) {
 		if (!this._yale) return;
-		await wait(interval * 1000);
+		while (true) {
+		try {
 		// Fetch latest panel and sensors
-		const panel = await this._yale.getPanel();
-		const sensors = await this._yale.getSensors();
+		const panel: Panel = await this._yale.getPanel();
+		const sensors: (MotionSensor | ContactSensor)[] = await this._yale.getSensors();
 		// Build lookup maps for sensors
 		const motionSensors: { [id: string]: MotionSensor } = {};
 		const contactSensors: { [id: string]: ContactSensor } = {};
@@ -94,8 +95,7 @@ class YaleSyncPlatform implements DynamicPlatformPlugin {
 				if (!this._accessories[uuid]) {
 					const contactAccessory = new this.PlatformAccessory(sensor.name, uuid);
 					contactAccessory.context = { kind: 'contactSensor', identifier: sensor.identifier };
-					// You may want to add a configureContactSensor method for full parity
-					this._accessories[uuid] = contactAccessory;
+					this.configureContactSensor(contactAccessory);
 					newAccessories.push(contactAccessory);
 					this._log.info(`Registering new contact sensor accessory: ${sensor.name}`);
 				}
@@ -111,7 +111,7 @@ class YaleSyncPlatform implements DynamicPlatformPlugin {
 		for (const [uuid, acc] of Object.entries(this._accessories)) {
 			const accessory = acc as any;
 			if (accessory.context.kind === 'panel' && panel !== undefined) {
-				if (accessory.identifier === panel.identifier) {
+				if (accessory.context.identifier === panel.identifier) {
 					accessory
 						.getService(this.Service.SecuritySystem)
 						.getCharacteristic(this.Characteristic.SecuritySystemCurrentState)
@@ -142,6 +142,46 @@ class YaleSyncPlatform implements DynamicPlatformPlugin {
 						);
 				}
 			}
+		}
+		} catch (err) {
+			this._log.error('Heartbeat error (will retry):', err);
+		}
+		await wait(interval * 1000);
+		} // end while
+	}
+
+	public configureContactSensor(accessory: any): void {
+		if (this._yale === undefined) {
+			return;
+		}
+		if (this._accessories[accessory.UUID] === undefined) {
+			const informationService: any = accessory.getService(this.Service.AccessoryInformation);
+			informationService
+				.setCharacteristic(this.Characteristic.Name, accessory.displayName)
+				.setCharacteristic(this.Characteristic.Manufacturer, 'Yale')
+				.setCharacteristic(this.Characteristic.Model, 'Contact Sensor')
+				.setCharacteristic(this.Characteristic.SerialNumber, accessory.context.identifier);
+			const sensorService: any =
+				accessory.getService(this.Service.ContactSensor) !== undefined
+					? accessory.getService(this.Service.ContactSensor)
+					: accessory.addService(this.Service.ContactSensor);
+			sensorService
+				.getCharacteristic(this.Characteristic.ContactSensorState)
+				.on('get' as any, async (callback: CharacteristicGetCallback) => {
+					if (this._yale === undefined) {
+						callback(new Error(`${pluginName} incorrectly configured`));
+						return;
+					}
+					const sensors = await this._yale.getSensors();
+					const contactSensor = sensors.find(s => s.identifier === accessory.context.identifier && 'state' in s && Object.values(ContactSensorState).includes((s as any).state)) as ContactSensor | undefined;
+					if (contactSensor !== undefined) {
+						this._log.info(`Fetching status of contact sensor: ${contactSensor.name} ${contactSensor.identifier}`);
+						callback(null, contactSensor.state === ContactSensorState.Closed ? 0 : 1);
+					} else {
+						callback(new Error(`Contact sensor: ${accessory.context.identifier} not found`));
+					}
+				});
+			this._accessories[accessory.UUID] = accessory;
 		}
 	}
 

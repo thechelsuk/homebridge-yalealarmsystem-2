@@ -23,10 +23,9 @@ export class YaleApiClient {
       await this.authenticate();
     }
     options.headers = {
-      ...(options.headers || {}),
       'Authorization': `Bearer ${this.accessToken!.token}`,
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
+      'Accept': 'application/json, application/xml, text/plain, text/html, *.*',
+      ...(options.headers || {}),
     };
     return fetch(url, options);
   }
@@ -72,10 +71,11 @@ export class YaleApiClient {
       throw new Error('Failed to fetch panel state');
     }
     const data = await resp.json();
+    const entry = Array.isArray(data.data) ? data.data[0] : data;
     return {
       identifier: '1',
-      name: data.name || 'Yale Panel',
-      state: data.mode as PanelState,
+      name: entry.name || 'Yale Panel',
+      state: entry.mode as PanelState,
     };
   }
 
@@ -88,7 +88,6 @@ export class YaleApiClient {
       body,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded ; charset=utf-8',
-        'Authorization': `Bearer ${this.accessToken!.token}`,
       },
     });
     if (!resp.ok) {
@@ -96,10 +95,14 @@ export class YaleApiClient {
       throw new Error('Failed to set panel state');
     }
     const data = await resp.json();
+    const ack = data.data?.cmd_ack;
+    if (ack !== 'OK') {
+      throw new Error(`Yale panel rejected state change: ${ack}`);
+    }
     return {
       identifier: '1',
-      name: data.name || 'Yale Panel',
-      state: data.mode as PanelState,
+      name: 'Yale Panel',
+      state,
     };
   }
 
@@ -120,17 +123,17 @@ export class YaleApiClient {
     // Parse sensors
     const sensors: Sensor[] = [];
     for (const device of devices) {
-      if (device.type && device.type.includes('contact')) {
+      if (device.type === 'device_type.door_contact') {
         sensors.push({
           identifier: device.device_id || device.id,
           name: device.name,
-          state: device.status === 'open' ? ContactSensorState.Open : ContactSensorState.Closed,
+          state: device.status1 === 'device_status.dc_open' ? ContactSensorState.Open : ContactSensorState.Closed,
         });
-      } else if (device.type && device.type.includes('pir')) {
+      } else if (device.type === 'device_type.pir') {
         sensors.push({
           identifier: device.device_id || device.id,
           name: device.name,
-          state: device.status1 === 'triggered' || device.status === 'triggered' ? MotionSensorState.Triggered : MotionSensorState.None,
+          state: device.status1 === 'device_status.pir_triggered' ? MotionSensorState.Triggered : MotionSensorState.None,
         });
       }
     }
